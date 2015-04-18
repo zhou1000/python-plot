@@ -1,10 +1,6 @@
 #! /usr/local/bin/python
 
 # convert adjacent list to network, using networkx module
-# file format:
-#     #comment
-#     #== indicate edge group
-#
 
 # yiqian, 20150417
 
@@ -12,52 +8,93 @@
 import sys
 import matplotlib.pyplot as plt
 import networkx as nx
+import argparse
 
 
-def adjlist2network(filename, delimiter = ','):
-    G = nx.Graph()
-    nodes = set()
-    edges = list()
-    edge_num_counter = 0
-    edge_group_starts = [0]
-    with open(filename,'r') as f:
+def parse_opt(file, delimiter = ','):
+    """ Read the options for plotting graph into a list
+        opt file format:
+            two column: key, value
+            # commenting
+            #== indicating a new subgraph
+    """
+    opts = []
+    with open(file, 'r') as f:
+        opt = {} # save option in a dictionary
         for line in f:
+            if line in ['\n','\r\n']:
+                continue
+            if line[0] != '#':
+                key, val = line.split(delimiter)
+                opt[key.strip()] = val.strip()
+            elif line[:3] == '#==':
+                if opt: # opt is not emptyx
+                    opts.append(opt)
+                    opt = {}
+        if opt:
+            opts.append(opt)
+    return opts
+
+def read_twocolumn_adjlist(filename, delimiter = ','):
+    """ Read the file and save it into list of Graphs 
+    twocolumn_adjlist file format:
+        two column
+        # commentting
+        #== indicating a new graph
+
+    Note: networkx already support multiple file format:
+       adjlist, multiline_adjlist, edgelist, ...
+       http://networkx.github.io/documentation/latest/reference/readwrite.html
+
+    """
+    Gs = [] # list of graphs
+    with open(filename, 'r') as f:
+        edges = []
+        for line in f:
+            if line in ['\n','\r\n']:
+                continue
             if line[0] != '#':
                 source, target = line.split(delimiter)
-                nodes.add(source)
-                nodes.add(target)
-                edges.append((source, target,))
-                edge_num_counter += 1
+                edges.append((source.strip(), target.strip(),))
             elif line[:3] == '#==':
-                edge_group_starts.append(edge_num_counter)
-    
-    G.add_nodes_from(nodes)
-    G.add_edges_from(edges)
-    # # pos = nx.spring_layout(G) # positions for all nodes
-    # pos=nx.get_node_attributes(G,'pos')
-    
-    # # nodes
-    # # nx.draw_networkx_nodes(G, pos, nodelist = list(nodes))
+                if len(edges) > 0:
+                    Gs.append(nx.Graph(edges))
+                    edges = []
+        if len(edges) > 0:
+            Gs.append(nx.Graph(edges))
+        return Gs
 
-    # print pos
-    # # edges
-    # edge_group_starts.append(len(edges))
-    # edge_colors = ['r','b','k']
-    # for i in range(len(edge_group_starts)-1):
-    #     group_start = edge_group_starts[i]
-    #     group_stop = edge_group_starts[i+1]
-    #     nx.draw_networkx_edges(G, pos,
-    #                        edgelist = edges[group_start: group_stop],
-    #                        edge_color = edge_colors[i])
+def combine_graph(Gs, opts):
+    # combine the graphs in the list Gs
+    G = Gs[0]
+    for i in range(1,len(Gs)):
+        G = nx.compose(G, Gs[i])
 
-    # # label
-    # node_list = list(nodes)
-    # node_names = {i: node_list[i] for i in range(len(node_list))}
-    # # nx.draw_networkx_labels(G, pos, node_names)
-    nx.draw(G)
+    # position of each nodes
+    pos = nx.spring_layout(G) # Fruchterman-Reingold force-directed algorithm.
+
+    # plot nodes and edges separately
+    for i in range(len(Gs)):
+        nodes = Gs[i].nodes()
+        edges = Gs[i].edges()
+        opt = opts[i]
+        nx.draw_networkx_nodes(G, pos, nodelist = nodes, 
+                               node_color = opt['node_color'], 
+                               alpha = float(opt['node_alpha']), 
+                               node_size = int(opt['node_size']))
+        nx.draw_networkx_edges(G, pos, edgelist = edges, 
+                               edge_color = opt['edge_color'], 
+                               alpha = float(opt['edge_alpha']), 
+                               width = int(opt['edge_width']))
+    # label the nodes
+    nx.draw_networkx_labels(G, pos)
     plt.show()
 
-
 if __name__ == "__main__":
-    filename = sys.argv[1]
-    adjlist2network(filename)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('file_adjlist', help="the adjacent list file containing two column")
+    parser.add_argument('file_opt', help="the option file")
+    args = parser.parse_args()
+    Gs = read_twocolumn_adjlist(args.file_adjlist)
+    opts = parse_opt(args.file_opt)
+    combine_graph(Gs, opts)
