@@ -10,28 +10,37 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import argparse
 
-def load_nodelists(file):
-    """ Read the file, return a list of nodelist
+def load_file(file):
+    """ Read the file, return a list of strlist, strlist is a list of string, separate by #==
     file format:
-        single column
         # commentting
-        #== indicating a new set of edges
+        #== indicating a new set of strings/lines
     """
-    nodelists = [] # list of edgelist
+    strlists = []
     with open(file, 'r') as f:
-        nodelist = []
+        strlist = []
         for line in f:
             if line in ['\n','\r\n']:
                 continue
             if line[0] != '#':
-                nodelist.append(line.strip())
+                strlist.append(line.strip())
             elif line[:3] == '#==':
-                if len(nodelist) > 0:
-                    nodelists.append(nodelist)
-                    nodelist = []
-        if len(nodelist) > 0:
-            nodelists.append(nodelist)
-        return nodelists
+                if len(strlist) > 0:
+                    strlists.append(strlist)
+                    strlist = []
+        if len(strlist) > 0:
+            strlists.append(strlist)
+        return strlists
+
+def load_nodelists(file):
+    """ Read the file, return a list of nodelist, a nodelist contains a group of nodes
+    file format:
+        single column
+        # commenting
+        #== indicating a new set of nodes
+    """
+    nodelists = load_file(file)
+    return nodelists
 
 def load_edgelists(file, delimiter = ','):
     """ Read the file, return a list of edgelist
@@ -40,22 +49,15 @@ def load_edgelists(file, delimiter = ','):
         # commentting
         #== indicating a new set of edges
     """
-    edgelists = [] # list of edgelist
-    with open(file, 'r') as f:
+    strlists = load_file(file)
+    edgelists = []
+    for strlist in strlists:
         edgelist = []
-        for line in f:
-            if line in ['\n','\r\n']:
-                continue
-            if line[0] != '#':
-                source, target = line.split(delimiter)
-                edgelist.append((source.strip(), target.strip(),))
-            elif line[:3] == '#==':
-                if len(edgelist) > 0:
-                    edgelists.append(edgelist)
-                    edgelist = []
-        if len(edgelist) > 0:
-            edgelists.append(edgelist)
-        return edgelists
+        for string in strlist:
+            source, target = string.split(delimiter)
+            edgelist.append((source.strip(), target.strip(),))
+        edgelists.append(edgelist)
+    return edgelists
 
 
 def load_opts(file, delimiter = ','):
@@ -65,28 +67,20 @@ def load_opts(file, delimiter = ','):
             # commenting
             #== indicating a new set of options
     """
+    strlists = load_file(file)
     opts = []
-    with open(file, 'r') as f:
-        opt = {} # save option in a dictionary
-        for line in f:
-            if line in ['\n','\r\n']:
-                continue
-            if line[0] != '#':
-                key, val = line.split(delimiter)
-                opt[key.strip()] = val.strip()
-            elif line[:3] == '#==':
-                if opt: # opt is not emptyx
-                    opts.append(opt)
-                    opt = {}
-        if opt:
-            opts.append(opt)
+    for strlist in strlists:
+        opt = {}
+        for string in strlist:
+            key, val = string.split(delimiter)
+            opt[key.strip()] = val.strip()
+        opts.append(opt)
     return opts
 
 
 def plot_graph(nodelists, edgelists, node_opts, edge_opts):
+    """ Given the lists of nodelist and edgelist, plot them together
     """
-    """
-
     # integrate all the nodes and edges
     G = nx.Graph()
     for nodelist in nodelists:
